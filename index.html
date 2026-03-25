@@ -1589,9 +1589,17 @@ PERSONALITY RULES:
     showTyping();
 
     var GEMINI_KEY = 'AIzaSyCkZLvNnuAPIrvoEomyKtesgzDgCZZDdh8';
-    var geminiMessages = history.slice(-10).map(function(m) {
+
+    // Build messages — always include at least the current user message
+    var allMessages = history.slice(-10);
+    var geminiMessages = allMessages.map(function(m) {
       return { role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] };
     });
+
+    // Ensure we never send empty contents
+    if (geminiMessages.length === 0) {
+      geminiMessages = [{ role: 'user', parts: [{ text: text }] }];
+    }
 
     fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + GEMINI_KEY, {
       method: 'POST',
@@ -1605,15 +1613,20 @@ PERSONALITY RULES:
     .then(function(r) { return r.json(); })
     .then(function(data) {
       hideTyping();
-      var reply = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0])
+      // Show API error detail if available
+      if (data.error) {
+        addBotMessage('API Error: ' + data.error.message);
+        return;
+      }
+      var reply = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0])
         ? data.candidates[0].content.parts[0].text
         : "Mi dispiace, something went wrong. Please try again! 🙏";
       addBotMessage(reply);
       history.push({ role: 'assistant', content: reply });
     })
-    .catch(function() {
+    .catch(function(err) {
       hideTyping();
-      addBotMessage("Oops! Something went wrong on my end. You can also reach us at +1 (555) 123-4567 🍝");
+      addBotMessage("Connection error: " + err.message);
     })
     .finally(function() {
       isLoading = false;
